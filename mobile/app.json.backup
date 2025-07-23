@@ -1,0 +1,75 @@
+{
+  "expo": {
+    "name": "Riddim",
+    "slug": "riddim-app",
+    "description": "Professional DJ mixing app with AI-powered BPM matching and stem separation",
+    "version": "1.0.0",
+    "scheme": "riddim",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "privacy": "public",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "githubUrl": "https://github.com/your-username/riddimapp",
+    "primaryColor": "#eab308",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "bundleIdentifier": "com.mobileriddim.app",
+      "buildNumber": "2",
+      "supportsTablet": false,
+      "requireFullScreen": true,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "audio"
+        ],
+        "NSMicrophoneUsageDescription": "This app needs access to the microphone for audio recording and mixing features.",
+        "NSAppleMusicUsageDescription": "This app needs access to your music library to mix and analyze your tracks."
+      },
+      "config": {
+        "usesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.mobileriddim.app",
+      "versionCode": 1,
+      "permissions": [
+        "RECORD_AUDIO",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow Riddim to access your microphone for audio recording and mixing."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "22b22079-2a3d-4afb-b909-7fe1ae98c7b1"
+      }
+    }
+  }
+}
