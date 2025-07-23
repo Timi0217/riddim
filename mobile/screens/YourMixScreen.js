@@ -6,10 +6,7 @@ import Slider from '@react-native-community/slider';
 import axios from 'axios';
 
 export default function YourMixScreen({ route, navigation }) {
-  const { tracks, splitResults, timeWindows } = route.params;
-  
-  // Debug: Log the time windows received
-  console.log('YourMixScreen received timeWindows:', timeWindows);
+  const { tracks, splitResults } = route.params;
   
   // If we don't have splitResults, we need to process the tracks first
   const [localSplitResults, setLocalSplitResults] = useState(splitResults || []);
@@ -51,6 +48,7 @@ export default function YourMixScreen({ route, navigation }) {
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [bpmMatching, setBpmMatching] = useState(false);
   const [analyzingBpm, setAnalyzingBpm] = useState(false);
+  const [bpmTargetTrack, setBpmTargetTrack] = useState(0); // 0 for track 1, 1 for track 2
 
   // Sound refs
   const soundRefs = [useRef(null), useRef(null)];
@@ -68,9 +66,23 @@ export default function YourMixScreen({ route, navigation }) {
 
   // Update state if coming back from EditMixScreen
   useEffect(() => {
-    if (route.params?.updatedDelays) setDelays(route.params.updatedDelays);
-    if (route.params?.updatedCrossfadeDuration !== undefined) setCrossfadeDuration(route.params.updatedCrossfadeDuration);
-    if (route.params?.updatedCrossfadeStyle) setCrossfadeStyle(route.params.updatedCrossfadeStyle);
+    console.log('=== ROUTE PARAMS UPDATE ===');
+    console.log('route.params:', route.params);
+    console.log('updatedDelays:', route.params?.updatedDelays);
+    
+    if (route.params?.updatedDelays) {
+      console.log('Setting delays to:', route.params.updatedDelays);
+      setDelays(route.params.updatedDelays);
+    }
+    if (route.params?.updatedCrossfadeDuration !== undefined) {
+      console.log('Setting crossfade duration to:', route.params.updatedCrossfadeDuration);
+      setCrossfadeDuration(route.params.updatedCrossfadeDuration);
+    }
+    if (route.params?.updatedCrossfadeStyle) {
+      console.log('Setting crossfade style to:', route.params.updatedCrossfadeStyle);
+      setCrossfadeStyle(route.params.updatedCrossfadeStyle);
+    }
+    console.log('==========================');
   }, [route.params]);
 
   // Helper functions
@@ -158,9 +170,11 @@ export default function YourMixScreen({ route, navigation }) {
       if (bpmMatching && results.length === 2) {
         const bpm1 = results[0].bpm;
         const bpm2 = results[1].bpm;
-        const targetBpm = Math.max(bpm1, bpm2); // Use the higher BPM as target
+        const targetBpm = bpmTargetTrack === 0 ? bpm1 : bpm2; // Use selected track's BPM as target
         const tempo1 = targetBpm / bpm1;
         const tempo2 = targetBpm / bpm2;
+        console.log(`BPM matching to Track ${bpmTargetTrack + 1} (${targetBpm} BPM)`);
+        console.log(`Tempo adjustments: Track 1: ${tempo1}x, Track 2: ${tempo2}x`);
         setTempoAdjustments([tempo1, tempo2]);
       } else if (!bpmMatching) {
         setTempoAdjustments([1.0, 1.0]);
@@ -186,17 +200,37 @@ export default function YourMixScreen({ route, navigation }) {
       // Re-apply BPM matching if we have analysis data
       const bpm1 = analysis[0].bpm;
       const bpm2 = analysis[1].bpm;
-      const targetBpm = Math.max(bpm1, bpm2);
+      const targetBpm = bpmTargetTrack === 0 ? bpm1 : bpm2; // Use selected track's BPM
       
       const tempo1 = targetBpm / bpm1;
       const tempo2 = targetBpm / bpm2;
       
-      console.log(`Re-applying BPM matching: Track 1 (${bpm1} BPM) -> ${tempo1.toFixed(2)}x, Track 2 (${bpm2} BPM) -> ${tempo2.toFixed(2)}x`);
+      console.log(`Re-applying BPM matching to Track ${bpmTargetTrack + 1} (${targetBpm} BPM)`);
+      console.log(`Track 1 (${bpm1} BPM) -> ${tempo1.toFixed(2)}x, Track 2 (${bpm2} BPM) -> ${tempo2.toFixed(2)}x`);
       setTempoAdjustments([tempo1, tempo2]);
     } else if (!newBpmMatching) {
       // Reset tempo adjustments when disabled
       console.log('BPM matching disabled, resetting tempo adjustments');
       setTempoAdjustments([1.0, 1.0]);
+    }
+  };
+
+  // Handle BPM target track change
+  const handleBpmTargetChange = (trackIndex) => {
+    setBpmTargetTrack(trackIndex);
+    
+    // Recalculate tempo adjustments if BPM matching is enabled and we have analysis data
+    if (bpmMatching && analysis && analysis.length === 2) {
+      const bpm1 = analysis[0].bpm;
+      const bpm2 = analysis[1].bpm;
+      const targetBpm = trackIndex === 0 ? bpm1 : bpm2;
+      
+      const tempo1 = targetBpm / bpm1;
+      const tempo2 = targetBpm / bpm2;
+      
+      console.log(`BPM target changed to Track ${trackIndex + 1} (${targetBpm} BPM)`);
+      console.log(`New tempo adjustments: Track 1: ${tempo1.toFixed(2)}x, Track 2: ${tempo2.toFixed(2)}x`);
+      setTempoAdjustments([tempo1, tempo2]);
     }
   };
 
@@ -620,18 +654,41 @@ export default function YourMixScreen({ route, navigation }) {
         ...allSounds1.map(sound => sound.setVolumeAsync(volumes[1])),
         ...allSounds0.map(sound => sound.setPositionAsync(timeWindow0.start * 1000)),
         ...allSounds1.map(sound => sound.setPositionAsync(timeWindow1.start * 1000)),
+        // Apply BPM adjustments if enabled
+        ...allSounds0.map(sound => applyAdvancedSettings(sound, 0)),
+        ...allSounds1.map(sound => applyAdvancedSettings(sound, 1)),
       ];
       await Promise.all(configPromises);
       setLoadingIdx([false, false]);
       setIsPlaying(true);
-      // CRITICAL: Use Promise.all to start ALL sounds as close to simultaneously as possible
-      console.log('Starting synchronized playback...');
-      const playPromises = [
-        ...allSounds0.map(sound => sound.playAsync()),
-        ...allSounds1.map(sound => sound.playAsync())
-      ];
-      await Promise.all(playPromises);
-      console.log('All sounds started');
+      // Apply delays during playback
+      console.log('Starting playback with delays...');
+      console.log('Track 1 delay:', delays[0], 'seconds');
+      console.log('Track 2 delay:', delays[1], 'seconds');
+      
+      const safeDelays = delays || [0, 0];
+      const track1DelayMs = (safeDelays[0] || 0) * 1000;
+      const track2DelayMs = (safeDelays[1] || 0) * 1000;
+      
+      // Start track 1 immediately or after its delay
+      setTimeout(async () => {
+        if (allSounds0.length > 0) {
+          const track1PlayPromises = allSounds0.map(sound => sound.playAsync());
+          await Promise.all(track1PlayPromises);
+          console.log('Track 1 started');
+        }
+      }, track1DelayMs);
+      
+      // Start track 2 immediately or after its delay  
+      setTimeout(async () => {
+        if (allSounds1.length > 0) {
+          const track2PlayPromises = allSounds1.map(sound => sound.playAsync());
+          await Promise.all(track2PlayPromises);
+          console.log('Track 2 started');
+        }
+      }, track2DelayMs);
+      
+      console.log('Playback scheduled with delays');
       // Set up completion handlers (only need one per track)
       allSounds0[0].setOnPlaybackStatusUpdate((status) => {
           if (status.didJustFinish) {
@@ -710,16 +767,34 @@ export default function YourMixScreen({ route, navigation }) {
     setVolumeUpdateTimeout(timeout);
   };
 
+  // Cleanup preview audio specifically
+  const cleanupPreviewAudio = async () => {
+    try {
+      console.log('Cleaning up preview audio...');
+      for (let i = 0; i < 2; i++) {
+        if (previewSoundRefs[i].current) {
+          try {
+            await previewSoundRefs[i].current.stopAsync();
+            await previewSoundRefs[i].current.unloadAsync();
+          } catch (error) {
+            console.log(`Error cleaning up preview sound ${i}:`, error.message);
+          }
+          previewSoundRefs[i].current = null;
+        }
+      }
+    } catch (error) {
+      console.error('Error in cleanupPreviewAudio:', error);
+    }
+  };
+
   // Apply advanced settings to audio
   const applyAdvancedSettings = async (sound, songIdx) => {
     try {
-      // Apply tempo adjustment (rate)
-      const finalTempo = tempo * tempoAdjustments[songIdx];
-      await sound.setRateAsync(finalTempo, true); // true = shouldCorrectPitch
-      
-      // Apply speed adjustment
-      if (speed !== 1.0) {
-        await sound.setRateAsync(speed, false); // false = don't correct pitch
+      // Apply tempo adjustment (rate) from BPM matching
+      const tempoMultiplier = tempoAdjustments[songIdx] || 1.0;
+      if (tempoMultiplier !== 1.0) {
+        console.log(`Applying BPM adjustment to track ${songIdx}: ${tempoMultiplier}x`);
+        await sound.setRateAsync(tempoMultiplier, true); // true = shouldCorrectPitch
       }
       
     } catch (error) {
@@ -733,37 +808,133 @@ export default function YourMixScreen({ route, navigation }) {
       alert('Please process tracks first before downloading');
       return;
     }
+
     try {
       const stems0 = selectedStems[0];
       const stems1 = selectedStems[1];
       const urls0 = stems0.map(stem => getStemUrl(0, stem)).filter(url => url);
       const urls1 = stems1.map(stem => getStemUrl(1, stem)).filter(url => url);
+      
       if (urls0.length === 0 || urls1.length === 0) {
         alert('No valid stems selected for mixing');
         return;
       }
-      // Use delays and crossfade settings
-      const response = await axios.post('http://192.168.0.242:8000/create_mix_with_offset_and_crossfade', {
-        track1_urls: urls0,
-        track2_urls: urls1,
-        track1_delay: delays[0],
-        track2_delay: delays[1],
-        crossfade_duration: crossfadeDuration,
-        crossfade_style: crossfadeStyle,
-      }, {
-        responseType: 'blob'
+
+      console.log('Starting mix download...');
+      
+      // Prepare safe values
+      const safeDelays = delays || [0, 0];
+      const safeTrack1Delay = safeDelays[0] !== undefined ? safeDelays[0] : 0;
+      const safeTrack2Delay = safeDelays[1] !== undefined ? safeDelays[1] : 0;
+      const safeCrossfadeDuration = crossfadeDuration !== undefined ? crossfadeDuration : 3;
+      const safeCrossfadeStyle = crossfadeStyle || 'linear';
+
+      console.log('Mix parameters:', {
+        track1_delay: safeTrack1Delay,
+        track2_delay: safeTrack2Delay,
+        crossfade_duration: safeCrossfadeDuration,
+        crossfade_style: safeCrossfadeStyle,
+        track1_stems: urls0.length,
+        track2_stems: urls1.length
       });
-      const blob = new Blob([response.data], { type: 'audio/mpeg' });
-      const url = URL.createObjectURL(blob);
+
+      // Import required modules
+      const FileSystem = await import('expo-file-system');
       const { shareAsync } = await import('expo-sharing');
-      await shareAsync(url, {
-        mimeType: 'audio/mpeg',
-        dialogTitle: 'Download Your Mix'
+
+      // Create unique filename
+      const timestamp = Date.now();
+      const fileName = `riddim_mix_${timestamp}.mp3`;
+      const fileUri = FileSystem.documentDirectory + fileName;
+
+      console.log('Downloading to:', fileUri);
+
+      // Make POST request to get mix data, then write to file
+      const response = await fetch('http://192.168.0.242:8000/create_mix_with_offset_and_crossfade', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          track1_urls: urls0,
+          track2_urls: urls1,
+          track1_delay: safeTrack1Delay,
+          track2_delay: safeTrack2Delay,
+          crossfade_duration: safeCrossfadeDuration,
+          crossfade_style: safeCrossfadeStyle,
+        })
       });
-      alert('Mix downloaded successfully!');
+
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`Server responded with status ${response.status}`);
+      }
+
+      // Get the audio data as ArrayBuffer
+      const audioBuffer = await response.arrayBuffer();
+      console.log('Received audio buffer, size:', audioBuffer.byteLength);
+
+      if (audioBuffer.byteLength === 0) {
+        throw new Error('Received empty audio file');
+      }
+
+      // Convert ArrayBuffer to base64 string for React Native (chunk by chunk to avoid stack overflow)
+      const uint8Array = new Uint8Array(audioBuffer);
+      let binaryString = '';
+      const chunkSize = 8192; // Process in chunks to avoid stack overflow
+      
+      console.log('Converting to base64 in chunks...');
+      for (let i = 0; i < uint8Array.length; i += chunkSize) {
+        const chunk = uint8Array.subarray(i, i + chunkSize);
+        binaryString += String.fromCharCode.apply(null, chunk);
+      }
+      
+      const base64Audio = btoa(binaryString);
+      console.log('Base64 conversion completed, length:', base64Audio.length);
+      
+      // Write base64 data to file
+      await FileSystem.writeAsStringAsync(fileUri, base64Audio, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+
+      // Check if file was created
+      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      console.log('File info:', fileInfo);
+
+      if (!fileInfo.exists || fileInfo.size === 0) {
+        throw new Error('Downloaded file appears to be empty or corrupted');
+      }
+
+      console.log(`File successfully downloaded: ${fileInfo.size} bytes`);
+
+      // Share the file
+      const shareResult = await shareAsync(fileUri, {
+        mimeType: 'audio/mpeg',
+        dialogTitle: 'Save Your Riddim Mix',
+        UTI: 'public.audio'
+      });
+
+      console.log('Share result:', shareResult);
+      alert('🎵 Mix downloaded successfully!');
+
     } catch (error) {
-      console.error('Error downloading mix:', error);
-      alert('Failed to download mix. Please try again.');
+      console.error('Download error:', error);
+      
+      // More specific error messages
+      let errorMessage = 'Failed to download mix';
+      if (error.message.includes('Network')) {
+        errorMessage = 'Network error - check your connection';
+      } else if (error.message.includes('404') || error.message.includes('500')) {
+        errorMessage = 'Server error - please try again';
+      } else if (error.message.includes('empty')) {
+        errorMessage = 'No audio data received - check your stems';
+      } else {
+        errorMessage = `Download failed: ${error.message}`;
+      }
+      
+      alert(errorMessage);
     }
   };
 
@@ -904,6 +1075,30 @@ export default function YourMixScreen({ route, navigation }) {
                       </View>
             ))}
           </View>
+                )}
+
+                {/* BPM Target Selection */}
+                {analysis && analysis.length === 2 && (
+                  <View style={styles.bpmTargetSelection}>
+                    <Text style={styles.sectionLabel}>Match BPM to:</Text>
+                    {analysis.map((result, idx) => (
+                      <TouchableOpacity
+                        key={idx}
+                        style={styles.radioOption}
+                        onPress={() => handleBpmTargetChange(idx)}
+                      >
+                        <View style={styles.radioButton}>
+                          <View style={[
+                            styles.radioCircle,
+                            bpmTargetTrack === idx && styles.radioCircleSelected
+                          ]} />
+                        </View>
+                        <Text style={styles.radioText}>
+                          {result.title}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 )}
               </View>
           
@@ -1134,12 +1329,19 @@ export default function YourMixScreen({ route, navigation }) {
         visible={showTimeModal}
         animationType="slide"
         presentationStyle="pageSheet"
+        onRequestClose={async () => {
+          await cleanupPreviewAudio();
+          setShowTimeModal(false);
+        }}
       >
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <TouchableOpacity 
               style={styles.modalCloseButton}
-              onPress={() => setShowTimeModal(false)}
+              onPress={async () => {
+                await cleanupPreviewAudio();
+                setShowTimeModal(false);
+              }}
             >
               <Ionicons name="close" size={24} color="#000" />
             </TouchableOpacity>
@@ -1681,5 +1883,42 @@ const styles = StyleSheet.create({
   advancedSlider: {
     height: 32,
     marginTop: 8,
+  },
+  bpmTargetSelection: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 16,
+    marginVertical: 8,
+  },
+  sectionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 12,
+  },
+  radioOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  radioButton: {
+    marginRight: 12,
+  },
+  radioCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    backgroundColor: 'transparent',
+  },
+  radioCircleSelected: {
+    borderColor: '#3b82f6',
+    backgroundColor: '#3b82f6',
+  },
+  radioText: {
+    fontSize: 16,
+    color: '#374151',
+    fontWeight: '500',
   },
 }); 

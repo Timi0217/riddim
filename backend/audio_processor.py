@@ -72,8 +72,10 @@ class RiddimAudioProcessor:
             if effects:
                 y = self._apply_effects(y, sr, effects)
             
-            # Save processed audio
-            output_path = os.path.join(self.temp_dir, f"processed_{os.path.basename(audio_file)}")
+            # Generate unique output filename
+            base_name = os.path.splitext(os.path.basename(audio_file))[0]
+            timestamp = str(int(np.random.random() * 1000000))
+            output_path = os.path.join(self.temp_dir, f"processed_{base_name}_{timestamp}.wav")
             sf.write(output_path, y, sr)
             
             logger.info(f"Processing complete: {output_path}")
@@ -109,16 +111,24 @@ class RiddimAudioProcessor:
             analysis1 = self.analyze_audio(track1_file)
             analysis2 = self.analyze_audio(track2_file)
             
-            # Calculate tempo ratio
+            # Calculate tempo adjustment factors
             tempo1, tempo2 = analysis1["tempo"], analysis2["tempo"]
-            tempo_ratio = tempo1 / tempo2
             
-            logger.info(f"Track 1 tempo: {tempo1}, Track 2 tempo: {tempo2}, Ratio: {tempo_ratio}")
+            # Find the target tempo (average of both tempos for smoother mixing)
+            target_tempo = (tempo1 + tempo2) / 2
             
-            # Process track 2 to match track 1's tempo
-            matched_track2 = self.professional_process(track2_file, tempo_factor=tempo_ratio)
+            # Calculate adjustment factors for both tracks
+            track1_factor = target_tempo / tempo1
+            track2_factor = target_tempo / tempo2
             
-            return track1_file, matched_track2
+            logger.info(f"Track 1 tempo: {tempo1} -> {target_tempo} (factor: {track1_factor})")
+            logger.info(f"Track 2 tempo: {tempo2} -> {target_tempo} (factor: {track2_factor})")
+            
+            # Process both tracks to match target tempo
+            matched_track1 = self.professional_process(track1_file, tempo_factor=track1_factor)
+            matched_track2 = self.professional_process(track2_file, tempo_factor=track2_factor)
+            
+            return matched_track1, matched_track2
             
         except Exception as e:
             logger.error(f"Beat matching failed: {e}")
@@ -287,55 +297,168 @@ class RiddimAudioProcessor:
             raise
     
     def create_mix_with_offset_and_crossfade(self, track1_urls, track2_urls, track1_delay=0, track2_delay=0, crossfade_duration=3, crossfade_style='linear'):
+        # Import requests for URL downloading
+        import requests
+        import tempfile
+        
         # 1. Load all stems for each track and mix down to stereo
         def mix_stems(stem_urls):
-            stems = [AudioSegment.from_file(url) for url in stem_urls]
-            if not stems:
-                return None
-            mix = stems[0]
-            for s in stems[1:]:
-                mix = mix.overlay(s)
-            return mix
+            stems = []
+            temp_files = []
+            
+            try:
+                for url in stem_urls:
+                    if url.startswith('http'):
+                        # Download URL to temporary file
+                        logger.info(f"Downloading stem from URL: {url}")
+                        response = requests.get(url, stream=True)
+                        response.raise_for_status()
+                        
+                        # Create temporary file
+                        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp3')
+                        for chunk in response.iter_content(chunk_size=8192):
+                            temp_file.write(chunk)
+                        temp_file.close()
+                        temp_files.append(temp_file.name)
+                        
+                        # Load from temporary file
+                        stem = AudioSegment.from_file(temp_file.name)
+                        stems.append(stem)
+                    else:
+                        # Assume it's a local file path
+                        stem = AudioSegment.from_file(url)
+                        stems.append(stem)
+                
+                if not stems:
+                    return None
+                    
+                # Mix all stems together
+                mix = stems[0]
+                for s in stems[1:]:
+                    mix = mix.overlay(s)
+                return mix
+                
+            finally:
+                # Clean up temporary files
+                for temp_file in temp_files:
+                    try:
+                        os.remove(temp_file)
+                    except:
+                        pass
 
         track1 = mix_stems(track1_urls)
         track2 = mix_stems(track2_urls)
         if track1 is None or track2 is None:
             raise Exception('Could not load stems for one or both tracks')
 
-        # 2. Apply delays (pad start with silence)
-        if track1_delay > 0:
-            track1 = AudioSegment.silent(duration=int(track1_delay * 1000)) + track1
-        if track2_delay > 0:
-            track2 = AudioSegment.silent(duration=int(track2_delay * 1000)) + track2
+        logger.info(f"Original track lengths: track1={len(track1)}ms, track2={len(track2)}ms")
+        logger.info(f"Delays: track1={track1_delay}s, track2={track2_delay}s")
+        logger.info(f"Crossfade: {crossfade_duration}s, style={crossfade_style}")
 
-        # 3. Calculate crossfade region (overlap)
-        # Find where tracks overlap
-        start_overlap = max(track1_delay, track2_delay)
-        end_overlap = min(len(track1) + int(track1_delay * 1000), len(track2) + int(track2_delay * 1000))
+        # 2. Calculate total length with delays
+        track1_delay_ms = int(track1_delay * 1000)
+        track2_delay_ms = int(track2_delay * 1000)
         crossfade_ms = int(crossfade_duration * 1000)
-
-        # 4. Mix tracks with crossfade
-        # Align tracks to the same length
-        total_length = max(len(track1), len(track2))
-        track1 = track1 + AudioSegment.silent(duration=total_length - len(track1))
-        track2 = track2 + AudioSegment.silent(duration=total_length - len(track2))
-
-        # Overlay with crossfade
-        if crossfade_ms > 0:
-            # Find crossfade start
-            crossfade_start = int((min(len(track1), len(track2)) - crossfade_ms) / 2)
-            if crossfade_start < 0:
-                crossfade_start = 0
-            # Fade out track1, fade in track2
-            t1 = track1.fade_out(crossfade_ms)
-            t2 = track2.fade_in(crossfade_ms)
-            mix = t1.overlay(t2, position=crossfade_start)
+        
+        # Total length of each track when positioned with delay
+        track1_end_time = track1_delay_ms + len(track1)
+        track2_end_time = track2_delay_ms + len(track2)
+        
+        # Final mix length is the latest end time
+        final_length = max(track1_end_time, track2_end_time)
+        
+        # 3. Create positioned tracks with proper delays
+        logger.info(f"Creating mix with final length: {final_length}ms")
+        logger.info(f"Track1 will start at: {track1_delay_ms}ms ({track1_delay}s)")
+        logger.info(f"Track2 will start at: {track2_delay_ms}ms ({track2_delay}s)")
+        
+        # Start with silence for the full length
+        positioned_track1 = AudioSegment.silent(duration=final_length)
+        positioned_track2 = AudioSegment.silent(duration=final_length)
+        
+        # Overlay tracks at their delayed positions
+        positioned_track1 = positioned_track1.overlay(track1, position=track1_delay_ms)
+        positioned_track2 = positioned_track2.overlay(track2, position=track2_delay_ms)
+        
+        logger.info(f"Track1 positioned: starts at {track1_delay_ms}ms, ends at {track1_delay_ms + len(track1)}ms")
+        logger.info(f"Track2 positioned: starts at {track2_delay_ms}ms, ends at {track2_delay_ms + len(track2)}ms")
+        
+        # 4. Apply crossfade if tracks overlap
+        overlap_start = max(track1_delay_ms, track2_delay_ms)
+        overlap_end = min(track1_end_time, track2_end_time)
+        
+        if crossfade_ms > 0 and overlap_end > overlap_start:
+            # Calculate crossfade region within the overlap
+            overlap_duration = overlap_end - overlap_start
+            actual_crossfade_ms = min(crossfade_ms, overlap_duration)
+            
+            if actual_crossfade_ms > 0:
+                # Create crossfade in the middle of overlap region
+                crossfade_start = overlap_start + (overlap_duration - actual_crossfade_ms) // 2
+                crossfade_end = crossfade_start + actual_crossfade_ms
+                
+                logger.info(f"Crossfade region: {crossfade_start}ms to {crossfade_end}ms")
+                
+                # Apply crossfade style
+                if crossfade_style == 'ease-in':
+                    # Track1 fades out with ease-in curve, track2 comes in linearly
+                    fade_curve = 'logarithmic'
+                elif crossfade_style == 'ease-out': 
+                    # Track1 fades out linearly, track2 comes in with ease-out curve
+                    fade_curve = 'exponential'
+                elif crossfade_style == 's-curve':
+                    # Both tracks use smooth S-curve
+                    fade_curve = 'logarithmic'
+                else:  # linear
+                    fade_curve = 'linear'
+                
+                # Extract crossfade segments
+                track1_segment = positioned_track1[crossfade_start:crossfade_end]
+                track2_segment = positioned_track2[crossfade_start:crossfade_end]
+                
+                # Apply fades to segments
+                track1_faded = track1_segment.fade_out(actual_crossfade_ms)
+                track2_faded = track2_segment.fade_in(actual_crossfade_ms)
+                
+                # Create crossfaded segment
+                crossfaded_segment = track1_faded.overlay(track2_faded)
+                
+                # Rebuild final mix with crossfaded section
+                mix = AudioSegment.silent(duration=final_length)
+                
+                # Add track1 before crossfade
+                if crossfade_start > 0:
+                    mix = mix.overlay(positioned_track1[:crossfade_start], position=0)
+                
+                # Add crossfaded section
+                mix = mix.overlay(crossfaded_segment, position=crossfade_start)
+                
+                # Add track1 after crossfade (if any)
+                if crossfade_end < len(positioned_track1):
+                    mix = mix.overlay(positioned_track1[crossfade_end:], position=crossfade_end)
+                
+                # Add track2 before crossfade (if any)  
+                if crossfade_start > track2_delay_ms:
+                    track2_before = positioned_track2[track2_delay_ms:crossfade_start]
+                    mix = mix.overlay(track2_before, position=track2_delay_ms)
+                
+                # Add track2 after crossfade
+                if crossfade_end < len(positioned_track2):
+                    mix = mix.overlay(positioned_track2[crossfade_end:], position=crossfade_end)
+            else:
+                # No crossfade, just overlay
+                mix = positioned_track1.overlay(positioned_track2)
         else:
-            mix = track1.overlay(track2)
+            # No overlap or crossfade, just overlay
+            mix = positioned_track1.overlay(positioned_track2)
 
-        # 5. Export final mix
-        output_path = '/tmp/final_mix.mp3'
+        # 5. Export final mix with unique filename to prevent caching
+        import time
+        timestamp = int(time.time() * 1000)  # millisecond timestamp
+        output_filename = f'your_mix_{timestamp}.mp3'
+        output_path = os.path.join(self.temp_dir, output_filename)
         mix.export(output_path, format='mp3')
+        logger.info(f"Mix exported to: {output_path}")
         return output_path
     
     def cleanup_temp_files(self):
