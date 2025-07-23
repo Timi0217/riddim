@@ -66,5 +66,4 @@ logs/
 
 # Google Cloud credentials
 gcp/credentials/
-# Google Cloud credentials only
-gcp/credentials/*.json
+*.json
