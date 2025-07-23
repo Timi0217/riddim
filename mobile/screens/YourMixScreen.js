@@ -33,7 +33,6 @@ export default function YourMixScreen({ route, navigation }) {
   ]);
 
   // Duration presets
-  const [durationPresets] = useState([15, 30, 60]);
 
   // UI State
   const [showTimeModal, setShowTimeModal] = useState(false);
@@ -290,30 +289,40 @@ export default function YourMixScreen({ route, navigation }) {
     const [localStart, setLocalStart] = useState(snippet.start / totalSec);
     const [localEnd, setLocalEnd] = useState((snippet.start + snippet.length) / totalSec);
     const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+    const [containerWidth, setContainerWidth] = useState(300);
     
     const handleStartChange = (value) => {
-      setLocalStart(value);
-      const currentDuration = localEnd - localStart;
-      setLocalEnd(value + currentDuration);
+      const newStart = Math.max(0, Math.min(value, 1 - (localEnd - localStart)));
+      setLocalStart(newStart);
     };
 
-    const handleEndChange = (value) => {
-      setLocalEnd(value);
-      const currentDuration = localEnd - localStart;
-      setLocalStart(value - currentDuration);
+    const handleStartComplete = () => {
+      updateSnippetSelection(localStart * totalSec, (localEnd - localStart) * totalSec);
     };
 
-    const handleStartComplete = (value) => {
-      const newStart = value * totalSec;
-      const originalDuration = snippet.length;
-      setSnippet(songIdx, { start: newStart, length: originalDuration });
+    const handleQuickStartAdjust = (adjustment) => {
+      const adjustmentRatio = adjustment / totalSec;
+      const newStart = Math.max(0, Math.min(localStart + adjustmentRatio, 1 - (localEnd - localStart)));
+      setLocalStart(newStart);
+      updateSnippetSelection(newStart * totalSec, (localEnd - localStart) * totalSec);
     };
 
-    const handleEndComplete = (value) => {
-      const newEnd = value * totalSec;
-      const originalDuration = snippet.length;
-      const newStart = newEnd - originalDuration;
-      setSnippet(songIdx, { start: newStart, length: originalDuration });
+    const handleDurationSelect = (durationSeconds) => {
+      const durationRatio = durationSeconds / totalSec;
+      const maxPossibleDuration = Math.min(durationRatio, 1 - localStart);
+      const newEnd = localStart + maxPossibleDuration;
+      setLocalEnd(newEnd);
+      updateSnippetSelection(localStart * totalSec, maxPossibleDuration * totalSec);
+    };
+
+    const updateSnippetSelection = (startSec, durationSec) => {
+      setSnippet(songIdx, { start: startSec, length: durationSec });
+    };
+
+    const formatTime = (seconds) => {
+      const mins = Math.floor(Math.abs(seconds) / 60);
+      const secs = Math.abs(seconds) % 60;
+      return `${mins}:${secs.toFixed(1).padStart(4, '0')}`;
     };
 
     const handlePreviewPlay = async () => {
@@ -389,44 +398,76 @@ export default function YourMixScreen({ route, navigation }) {
           <Text style={styles.timeLabel}>{formatMillis(duration * 1000)}</Text>
         </View>
 
-        <View style={styles.singleSliderContainer}>
-          <Text style={styles.sliderLabel}>Time Selection</Text>
-          <View style={styles.sliderTrack}>
-            <View style={styles.sliderBackground} />
-            
-            <View 
-              style={[
-                styles.selectedRange,
-                {
-                  left: `${localStart * 100}%`,
-                  width: `${(localEnd - localStart) * 100}%`,
-                }
-              ]} 
-            />
-            
+        {/* Start Time Selection */}
+        <View style={styles.timeSliderCard}>
+          <Text style={styles.timeSliderLabel}>Start Time</Text>
+          <Text style={styles.timeSliderValue}>{formatTime(localStart * totalSec)}</Text>
+          <View style={styles.sliderWrapper}>
+            <Text style={styles.sliderMin}>0s</Text>
             <Slider
-              style={[styles.slider, styles.startSlider]}
+              style={styles.timeSlider}
               minimumValue={0}
               maximumValue={1}
+              step={0.001}
               value={localStart}
-              minimumTrackTintColor="transparent"
-              maximumTrackTintColor="transparent"
-              thumbTintColor="#eab308"
               onValueChange={handleStartChange}
               onSlidingComplete={handleStartComplete}
-            />
-            
-            <Slider
-              style={[styles.slider, styles.endSlider]}
-              minimumValue={0}
-              maximumValue={1}
-              value={localEnd}
-              minimumTrackTintColor="transparent"
-              maximumTrackTintColor="transparent"
+              minimumTrackTintColor="#eab308"
+              maximumTrackTintColor="#d1d5db"
               thumbTintColor="#eab308"
-              onValueChange={handleEndChange}
-              onSlidingComplete={handleEndComplete}
             />
+            <Text style={styles.sliderMax}>{formatTime(totalSec)}</Text>
+          </View>
+          
+          {/* Quick Start Time Buttons */}
+          <View style={styles.quickButtonContainer}>
+            <Text style={styles.quickButtonLabel}>Quick Adjustments:</Text>
+            <View style={styles.quickRow}>
+              {[2, 5, 10, 15].map(adjustment => (
+                <TouchableOpacity 
+                  key={adjustment} 
+                  style={styles.quickButton} 
+                  onPress={() => handleQuickStartAdjust(adjustment)}
+                >
+                  <Text style={styles.quickButtonText}>+{adjustment}s</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        {/* Duration Selection */}
+        <View style={styles.timeSliderCard}>
+          <Text style={styles.timeSliderLabel}>Duration</Text>
+          <Text style={styles.timeSliderValue}>{formatTime((localEnd - localStart) * totalSec)}</Text>
+          
+          {/* Duration Preset Buttons */}
+          <View style={styles.durationButtonContainer}>
+            <Text style={styles.quickButtonLabel}>Select Duration:</Text>
+            <View style={styles.durationButtonRow}>
+              {[15, 30, 60].map(duration => {
+                const currentDuration = (localEnd - localStart) * totalSec;
+                const isActive = Math.abs(currentDuration - duration) < 2; // Increased tolerance for 60s
+                
+                return (
+                  <TouchableOpacity 
+                    key={duration} 
+                    style={[
+                      styles.durationButton,
+                      isActive && styles.durationButtonActive
+                    ]} 
+                    onPress={() => handleDurationSelect(duration)}
+                  >
+                    <Text style={[
+                      styles.durationButtonText,
+                      isActive && styles.durationButtonTextActive
+                    ]}>
+                      {duration}s
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         </View>
 
@@ -1206,31 +1247,6 @@ export default function YourMixScreen({ route, navigation }) {
             </TouchableOpacity>
           </View>
 
-              {/* Duration Presets */}
-              <View style={styles.durationPresets}>
-                {durationPresets.map((duration) => (
-                      <TouchableOpacity
-                    key={duration}
-                    style={[
-                      styles.durationButton,
-                      snippetSelections[songIdx].length === duration && styles.durationButtonActive,
-                      processingTracks && styles.durationButtonDisabled
-                    ]}
-                    onPress={() => setSnippet(songIdx, { 
-                      start: snippetSelections[songIdx].start, 
-                      length: duration 
-                    })}
-                    disabled={processingTracks}
-                  >
-                    <Text style={[
-                      styles.durationButtonText,
-                      snippetSelections[songIdx].length === duration && styles.durationButtonTextActive
-                    ]}>
-                      {duration}s
-                    </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
             </View>
 
             {/* Playback Controls */}
@@ -1505,34 +1521,6 @@ const styles = StyleSheet.create({
   timeButtonDisabled: {
     opacity: 0.5,
   },
-  durationPresets: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  durationButton: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginHorizontal: 4,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  durationButtonActive: {
-    backgroundColor: '#eab308',
-    borderColor: '#eab308',
-  },
-  durationButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#666',
-  },
-  durationButtonTextActive: {
-    color: '#000',
-  },
-  durationButtonDisabled: {
-    opacity: 0.5,
-  },
   
   // Playback Styles
   playbackSection: {
@@ -1709,42 +1697,46 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sliderTrack: {
-    height: 32,
+    height: 40,
     backgroundColor: '#e5e7eb',
     borderRadius: 16,
     position: 'relative',
     marginBottom: 8,
+    justifyContent: 'center',
   },
   sliderBackground: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    top: 6,
+    left: 16,
+    right: 16,
+    bottom: 6,
     backgroundColor: '#d1d5db',
-    borderRadius: 16,
+    borderRadius: 14,
   },
   selectedRange: {
     position: 'absolute',
-    top: 0,
-    bottom: 0,
+    top: 6,
+    bottom: 6,
     backgroundColor: '#eab308',
-    borderRadius: 16,
+    borderRadius: 14,
     zIndex: 1,
   },
   slider: {
     position: 'absolute',
-    top: 0,
-    bottom: 0,
+    top: -4,
+    bottom: -4,
     left: 0,
     right: 0,
+    height: 48,
     zIndex: 2,
   },
   startSlider: {
     left: 0,
+    zIndex: 3,
   },
   endSlider: {
     right: 0,
+    zIndex: 3,
   },
   previewButton: {
     flexDirection: 'row',
@@ -1920,5 +1912,97 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#374151',
     fontWeight: '500',
+  },
+  timeSliderCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+  },
+  timeSliderLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  timeSliderValue: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 12,
+  },
+  sliderWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+  },
+  timeSlider: {
+    flex: 1,
+    height: 40,
+  },
+  sliderMin: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginRight: 10,
+  },
+  sliderMax: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginLeft: 10,
+  },
+  quickButtonContainer: {
+    marginTop: 12,
+  },
+  quickButtonLabel: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 8,
+  },
+  quickRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  quickButton: {
+    backgroundColor: '#eab308',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#000',
+  },
+  durationButtonContainer: {
+    marginTop: 12,
+  },
+  durationButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  durationButton: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    minWidth: 70,
+  },
+  durationButtonActive: {
+    backgroundColor: '#eab308',
+    borderColor: '#eab308',
+  },
+  durationButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  durationButtonTextActive: {
+    color: '#000',
   },
 }); 
