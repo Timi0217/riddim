@@ -231,8 +231,29 @@ def get_progress(task_id: str):
 
 @app.get("/file/{file_path:path}")
 def get_file(file_path: str = Path(..., description="Relative path under storage/")):
+    # Sanitize and validate file path to prevent path traversal attacks
+    file_path = file_path.strip().strip('/')
+    
+    # Block dangerous path components
+    if '..' in file_path or file_path.startswith('/') or '\\' in file_path:
+        return JSONResponse({"error": "Invalid file path"}, status_code=400)
+    
+    # Only allow certain file extensions
+    allowed_extensions = {'.mp3', '.wav', '.m4a', '.webm'}
+    file_ext = os.path.splitext(file_path.lower())[1]
+    if file_ext not in allowed_extensions:
+        return JSONResponse({"error": "File type not allowed"}, status_code=400)
+    
     file_path_full = os.path.join(AUDIO_DIR, file_path)
-    if os.path.exists(file_path_full):
+    
+    # Ensure the resolved path is still within AUDIO_DIR
+    real_audio_dir = os.path.realpath(AUDIO_DIR)
+    real_file_path = os.path.realpath(file_path_full)
+    
+    if not real_file_path.startswith(real_audio_dir):
+        return JSONResponse({"error": "Access denied"}, status_code=403)
+    
+    if os.path.exists(file_path_full) and os.path.isfile(file_path_full):
         return FileResponse(file_path_full)
     return JSONResponse({"error": "File not found"}, status_code=404)
 
@@ -469,6 +490,11 @@ async def create_mix_with_offset_and_crossfade(request: Request):
     track2_delay = data.get('track2_delay', 0)
     crossfade_duration = data.get('crossfade_duration', 3)
     crossfade_style = data.get('crossfade_style', 'linear')
+
+    print(f"[CreateMixWithOffset] Received delays: track1={track1_delay}s, track2={track2_delay}s")
+    print(f"[CreateMixWithOffset] Crossfade: {crossfade_duration}s, style={crossfade_style}")
+    print(f"[CreateMixWithOffset] Track1 URLs: {len(track1_urls) if track1_urls else 0}")
+    print(f"[CreateMixWithOffset] Track2 URLs: {len(track2_urls) if track2_urls else 0}")
 
     # Call audio processor
     output_path = audio_processor.create_mix_with_offset_and_crossfade(
