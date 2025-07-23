@@ -1,0 +1,36 @@
+{
+  "appStoreConnect": {
+    "appName": "Riddim - DJ Mixing App",
+    "subtitle": "Professional DJ mixing with AI",
+    "description": "Transform your music mixing experience with Riddim, the professional DJ app powered by advanced AI technology.\n\nKey Features:\n• AI-powered BPM matching for seamless transitions\n• Advanced stem separation technology\n• Professional crossfade controls with multiple styles\n• Precise timing and delay adjustments\n• Intuitive mixing interface designed for mobile\n• Support for various audio formats\n• Real-time audio processing\n\nWhether you're a professional DJ or just starting your mixing journey, Riddim provides the tools you need to create amazing mixes on the go. Our advanced algorithms analyze your tracks and help you create perfect transitions automatically.\n\nPerfect for:\n• DJs and music producers\n• Music enthusiasts\n• Party hosts and event organizers\n• Anyone who loves mixing music\n\nDownload Riddim today and take your mixing skills to the next level!",
+    "keywords": "DJ, mixing, music, BPM, crossfade, stems, audio, beats, party, dance",
+    "supportURL": "https://your-website.com/support",
+    "marketingURL": "https://your-website.com",
+    "privacyURL": "https://your-website.com/privacy",
+    "category": "Music",
+    "contentRating": "4+",
+    "screenshots": {
+      "iphone65": "Required: 6.5-inch iPhone screenshots (1290x2796)",
+      "iphone55": "Required: 5.5-inch iPhone screenshots (1242x2208)",
+      "ipad129": "Optional: 12.9-inch iPad screenshots (2048x2732)",
+      "ipadPro": "Optional: iPad Pro screenshots (2048x2732)"
+    }
+  },
+  "googlePlayConsole": {
+    "title": "Riddim - DJ Mixing App",
+    "shortDescription": "Professional DJ mixing app with AI-powered BPM matching and stem separation technology.",
+    "fullDescription": "Transform your music mixing experience with Riddim, the professional DJ app powered by advanced AI technology.\n\nKey Features:\n• AI-powered BPM matching for seamless transitions\n• Advanced stem separation technology  \n• Professional crossfade controls with multiple styles\n• Precise timing and delay adjustments\n• Intuitive mixing interface designed for mobile\n• Support for various audio formats\n• Real-time audio processing\n\nWhether you're a professional DJ or just starting your mixing journey, Riddim provides the tools you need to create amazing mixes on the go. Our advanced algorithms analyze your tracks and help you create perfect transitions automatically.\n\nPerfect for:\n• DJs and music producers\n• Music enthusiasts\n• Party hosts and event organizers\n• Anyone who loves mixing music\n\nDownload Riddim today and take your mixing skills to the next level!",
+    "category": "Music & Audio",
+    "contentRating": "Everyone",
+    "screenshots": {
+      "phone": "Required: Phone screenshots (16:9 or 9:16 aspect ratio)",
+      "tablet7": "Optional: 7-inch tablet screenshots",
+      "tablet10": "Optional: 10-inch tablet screenshots"
+    },
+    "featureGraphic": "Required: 1024x500 feature graphic",
+    "appIcon": "Required: 512x512 high-res icon"
+  },
+  "releaseNotes": {
+    "version1.0.0": "🎵 Initial release of Riddim!\n\n✨ Features:\n• AI-powered BPM matching\n• Professional stem separation\n• Advanced crossfade controls\n• Precise timing adjustments\n• Intuitive mobile interface\n\n🎧 Perfect for DJs and music enthusiasts!\n\nWelcome to the future of mobile DJ mixing!"
+  }
+}
