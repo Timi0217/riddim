@@ -18,7 +18,7 @@
     ],
     "ios": {
       "bundleIdentifier": "com.mobileriddim.app",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "supportsTablet": false,
       "requireFullScreen": true,
       "infoPlist": {

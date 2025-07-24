@@ -461,13 +461,26 @@ class RiddimAudioProcessor:
         logger.info(f"Mix exported to: {output_path}")
         return output_path
     
-    def cleanup_temp_files(self):
-        """Clean up temporary audio files"""
+    def cleanup_temp_files(self, max_age_hours=24):
+        """Clean up temporary audio files older than max_age_hours"""
         try:
+            import time
+            current_time = time.time()
+            cleanup_count = 0
+            
             for file in os.listdir(self.temp_dir):
                 file_path = os.path.join(self.temp_dir, file)
                 if os.path.isfile(file_path):
-                    os.remove(file_path)
-            logger.info("Temporary files cleaned up")
+                    # Check file age
+                    file_age = current_time - os.path.getmtime(file_path)
+                    if file_age > (max_age_hours * 3600):  # Convert hours to seconds
+                        os.remove(file_path)
+                        cleanup_count += 1
+                        
+            logger.info(f"Cleaned up {cleanup_count} temporary files older than {max_age_hours} hours")
         except Exception as e:
-            logger.error(f"Cleanup failed: {e}") 
+            logger.error(f"Cleanup failed: {e}")
+
+    def auto_cleanup_old_files(self):
+        """Automatically run cleanup on processor initialization"""
+        self.cleanup_temp_files(max_age_hours=1)  # Clean files older than 1 hour 

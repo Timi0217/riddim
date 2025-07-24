@@ -27,7 +27,7 @@
     "production": {
       "ios": {
         "appleId": "timidayokayode@gmail.com",
-        "ascAppId": "your-app-store-connect-id",
+        "ascAppId": "6749022909",
         "appleTeamId": "TXQUSHN8GJ",
         "bundleIdentifier": "com.mobileriddim.app"
       },

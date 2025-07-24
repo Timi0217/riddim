@@ -23,11 +23,15 @@ import tempfile
 import requests
 
 app = FastAPI()
+
+# Get allowed origins from environment variables, fallback to wildcard for development
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "*").split(",") if os.getenv("ALLOWED_ORIGINS") != "*" else ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Set to your frontend domain in production
+    allow_origins=allowed_origins,  # Now configurable via environment
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],  # More specific than "*"
     allow_headers=["*"],
 )
 app.include_router(twilio_auth_router)
@@ -82,10 +86,18 @@ class HarmonicSuggestionsResponse(BaseModel):
 
 @app.get("/search")
 def search_tracks(q: str, page: int = 1, genre: str = None, sort: str = None):
-    if not q or not q.strip():
-        print("[Search] Empty query received, returning empty results.")
-        return {"results": [], "page": page, "total": 0}
-    return spotify_search(q, page, genre, sort)
+    try:
+        if not q or not q.strip():
+            return {"results": [], "page": page, "total": 0}
+        
+        # Basic input validation
+        if len(q) > 200:  # Prevent extremely long queries
+            return {"error": "Search query too long"}, 400
+            
+        return spotify_search(q, page, genre, sort)
+    except Exception as e:
+        print(f"[Search] Error: {e}")
+        return {"error": "Search failed", "results": [], "page": page, "total": 0}
 
 @app.get("/song/{song_id}")
 def get_song_info(song_id: str):
