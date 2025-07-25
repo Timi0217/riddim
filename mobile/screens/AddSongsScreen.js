@@ -3,6 +3,7 @@ import { SafeAreaView, View, Text, TextInput, FlatList, TouchableOpacity, Image,
 import axios from "axios";
 import { Audio } from "expo-av";
 import { Ionicons } from '@expo/vector-icons';
+import { API_ENDPOINTS } from '../config/api';
 
 // Debounce utility
 function debounce(func, delay) {
@@ -28,7 +29,7 @@ export default function AddSongsScreen({ navigation }) {
   const searchTracks = async (q) => {
     setLoading(true);
     try {
-      const res = await axios.get(`http://192.168.0.242:8000/search?q=${encodeURIComponent(q)}`);
+      const res = await axios.get(`${API_ENDPOINTS.search}?q=${encodeURIComponent(q)}`);
       setResults(res.data.results || []);
     } catch (e) {
       setResults([]);

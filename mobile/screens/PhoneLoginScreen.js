@@ -4,12 +4,11 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const BACKEND_URL = 'http://192.168.0.242:8000'; // Update if needed
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api';
 
 // Configure axios with better timeout and retry settings
 const api = axios.create({
-  baseURL: BACKEND_URL,
+  baseURL: API_BASE_URL,
   timeout: 10000, // 10 second timeout
   headers: { 'Content-Type': 'application/json' }
 });

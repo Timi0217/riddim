@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Audio } from "expo-av";
 import Slider from '@react-native-community/slider';
 import axios from 'axios';
+import { API_ENDPOINTS } from '../config/api';
 
 export default function YourMixScreen({ route, navigation }) {
   const { tracks, splitResults } = route.params;
@@ -148,7 +149,7 @@ export default function YourMixScreen({ route, navigation }) {
         const splitResult = localSplitResults[i];
         if (splitResult && splitResult.full_song_url) {
           console.log(`Analyzing BPM for track ${i}: ${track.title}`);
-          const response = await axios.post('http://192.168.0.242:8000/analyze_audio', null, {
+          const response = await axios.post(API_ENDPOINTS.analyzeAudio, null, {
             params: {
               audio_url: splitResult.full_song_url
             }
@@ -243,7 +244,7 @@ export default function YourMixScreen({ route, navigation }) {
           for (let i = 0; i < tracks.length; i++) {
             const track = tracks[i];
             
-            const response = await axios.post('http://192.168.0.242:8000/split_snippets', {
+            const response = await axios.post(API_ENDPOINTS.splitSnippets, {
               songs: [{
                 id: track.id,
                 start: 0,
@@ -891,7 +892,7 @@ export default function YourMixScreen({ route, navigation }) {
       console.log('Downloading to:', fileUri);
 
       // Make POST request to get mix data, then write to file
-      const response = await fetch('http://192.168.0.242:8000/create_mix_with_offset_and_crossfade', {
+      const response = await fetch(API_ENDPOINTS.createMix, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
