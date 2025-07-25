@@ -3,11 +3,11 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
 // Determine if we're in development or production
-const isDevelopment = __DEV__ || Constants.appOwnership === 'expo';
+const isDevelopment = __DEV__ && Constants.appOwnership === 'expo';
 
 // API Base URLs
 const DEVELOPMENT_API_URL = 'http://192.168.0.242:8000';
-const PRODUCTION_API_URL = 'https://riddim-app-deploy-production.up.railway.app';
+const PRODUCTION_API_URL = 'https://riddim-3icq.onrender.com';
 
 // Export the appropriate API URL
 export const API_BASE_URL = isDevelopment ? DEVELOPMENT_API_URL : PRODUCTION_API_URL;

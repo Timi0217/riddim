@@ -529,7 +529,7 @@ def get_available_tracks():
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
-            cur.execute("SELECT spotify_track_id, title, artist FROM stems ORDER BY title LIMIT 50")
+            cur.execute("SELECT spotify_track_id, track_name, artist_names FROM stems ORDER BY track_name LIMIT 50")
             tracks = cur.fetchall()
         conn.close()
         return {"tracks": tracks}
