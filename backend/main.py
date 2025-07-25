@@ -3,21 +3,21 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
-from celery.result import AsyncResult
-from celery_worker import celery_app
+# from celery.result import AsyncResult
+# from celery_worker import celery_app
 from audiomack import spotify_search
-from tasks import download_track_task, process_track_task
+# from tasks import download_track_task, process_track_task
 import os
-import certifi
+# import certifi
 from dotenv import load_dotenv
 load_dotenv()
-os.environ['SSL_CERT_FILE'] = certifi.where()
-import yt_dlp
+# os.environ['SSL_CERT_FILE'] = certifi.where()
+# import yt_dlp
 import glob
 import subprocess
 import shutil
 from twilio_auth import router as twilio_auth_router
-from audio_processor import RiddimAudioProcessor
+# from audio_processor import RiddimAudioProcessor
 from db import get_db_connection, get_stems_by_spotify_id
 import tempfile
 import requests
@@ -297,28 +297,19 @@ def youtube_search(title: str, artist: str):
             return {"error": "No YouTube result found"}
 
 # Initialize the professional audio processor
-audio_processor = RiddimAudioProcessor()
+# audio_processor = RiddimAudioProcessor()  # Disabled for Railway deployment
 
 @app.post("/analyze_audio")
 def analyze_audio(audio_url: str):
     """Analyze audio file from a GCS URL using librosa for tempo, key, energy, etc."""
-    temp_path = None
-    try:
-        # Download to temp file
-        r = requests.get(audio_url, stream=True)
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.mp3')
-        for chunk in r.iter_content(chunk_size=8192):
-            tmp.write(chunk)
-        tmp.close()
-        temp_path = tmp.name
-        analysis = audio_processor.analyze_audio(temp_path)
-        return analysis
-    except Exception as e:
-        print(f"[AnalyzeAudio] Error: {e}")
-        return JSONResponse({"error": str(e)}, status_code=500)
-    finally:
-        if temp_path and os.path.exists(temp_path):
-            os.remove(temp_path)
+    # TEMPORARY: Return dummy data for Railway deployment
+    return {
+        "tempo": 120.0,
+        "key": 0.0,
+        "energy": 0.5,
+        "duration": 180.0,
+        "beats_count": 480
+    }
 
 @app.post("/process_audio")
 def process_audio(audio_url: str, tempo_factor: float = 1.0, pitch_semitones: float = 0.0, effects: dict = {}):
@@ -508,17 +499,11 @@ async def create_mix_with_offset_and_crossfade(request: Request):
     print(f"[CreateMixWithOffset] Track1 URLs: {len(track1_urls) if track1_urls else 0}")
     print(f"[CreateMixWithOffset] Track2 URLs: {len(track2_urls) if track2_urls else 0}")
 
-    # Call audio processor
-    output_path = audio_processor.create_mix_with_offset_and_crossfade(
-        track1_urls, track2_urls,
-        track1_delay=track1_delay,
-        track2_delay=track2_delay,
-        crossfade_duration=crossfade_duration,
-        crossfade_style=crossfade_style
+    # TEMPORARY: Return error for Railway deployment (audio processing disabled)
+    return JSONResponse(
+        {"error": "Audio processing temporarily disabled on Railway deployment"}, 
+        status_code=503
     )
-
-    # Return the file as a response
-    return FileResponse(output_path, media_type='audio/mpeg', filename='mix.mp3')
 
 @app.get("/test_db")
 def test_db():
@@ -532,6 +517,11 @@ def test_db():
         return {"success": True, "result": result}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+@app.get("/")
+def health_check():
+    """Health check endpoint for Railway"""
+    return {"status": "healthy", "message": "Riddim API is running"}
 
 @app.get("/available_tracks")
 def get_available_tracks():
